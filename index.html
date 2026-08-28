@@ -153,7 +153,7 @@
       <div class="form-row">
         <div class="form-group">
           <label>Loại lãi *</label>
-          <select id="rateType" onchange="updateRateLabel()">
+          <select id="rateType">
             <option value="day">Lãi ngày (VNĐ/triệu/ngày)</option>
             <option value="month">Lãi tháng (%)</option>
             <option value="year">Lãi năm (%/năm)</option>
@@ -635,12 +635,6 @@ function showToast(msg) {
   toast.textContent = msg;
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 3000);
-}
-
-function updateRateLabel() {
-  const type = document.getElementById('rateType').value;
-  const labels = { day: 'Lãi ngày (VNĐ/triệu/ngày)', month: 'Lãi tháng (%)', year: 'Lãi năm (%/năm)' };
-  document.querySelector('#loanForm .form-group:nth-child(3) label').textContent = 'Loại lãi *';
 }
 
 window.onclick = (e) => {
