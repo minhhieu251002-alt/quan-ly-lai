@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hệ thống Quản lý Lãi & Cho vay</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+  body { background: #f4f6f8; color: #333; padding: 20px; }
+  h1 { text-align: center; color: #2c3e50; margin-bottom: 20px; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 25px; }
+  .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }
+  .card h3 { font-size: 14px; color: #666; margin-bottom: 10px; }
+  .card .number { font-size: 24px; font-weight: bold; color: #2c3e50; }
+  .card .number.green { color: #27ae60; }
+  .card .number.red { color: #e74c3c; }
+  .card .number.blue { color: #2980b9; }
+  .card .number.orange { color: #e67e22; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; align-items: center; justify-content: space-between; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
+  .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+  .btn-primary { background: #3498db; color: white; }
+  .btn-primary:hover { background: #2980b9; }
+  .btn-success { background: #27ae60; color: white; }
+  .btn-success:hover { background: #219a52; }
+  .btn-warning { background: #f39c12; color: white; }
+  .btn-warning:hover { background: #d68910; }
+  .btn-danger { background: #e74c3c; color: white; }
+  .btn-danger:hover { background: #c0392b; }
+  .btn-secondary { background: #95a5a6; color: white; }
+  .btn-secondary:hover { background: #7f8c8d; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .search-box { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; width: 200px; }
+
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+  th { background: #34495e; color: white; padding: 12px; text-align: left; font-size: 14px; }
+  td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+  tr:hover { background: #f9f9f9; }
+  .status { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; display: inline-block; }
+  .status.on-time { background: #d5f5e3; color: #27ae60; }
+  .status.due-soon { background: #fdebd0; color: #e67e22; }
+  .status.overdue { background: #fadbd8; color: #c0392b; }
+
+  .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+  .modal.active { display: flex; }
+  .modal-content { background: white; padding: 25px; border-radius: 10px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .modal-header h2 { font-size: 20px; }
+  .close { font-size: 24px; cursor: pointer; color: #999; }
+  .close:hover { color: #333; }
+
+  .form-group { margin-bottom: 15px; }
+  .form-group label { display: block; margin-bottom: 5px; font-weight: 500; font-size: 14px; }
+  .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+  .form-group textarea { min-height: 80px; resize: vertical; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+  .checkbox-group { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .checkbox-group input { width: auto; }
+
+  .history-list { margin-top: 15px; }
+  .history-item { padding: 8px; border-left: 3px solid #3498db; background: #f8f9fa; margin-bottom: 6px; border-radius: 4px; font-size: 13px; }
+
+  .actions { display: flex; gap: 5px; flex-wrap: wrap; }
+
+  .toast { position: fixed; bottom: 20px; right: 20px; background: #27ae60; color: white; padding: 12px 20px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 2000; display: none; }
+  .toast.show { display: block; animation: slideIn 0.3s; }
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  .empty-state { text-align: center; padding: 40px; color: #999; }
+  .empty-state svg { width: 80px; height: 80px; margin-bottom: 15px; opacity: 0.3; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>💰 Hệ thống Quản lý Lãi & Cho vay</h1>
+
+  <div class="dashboard" id="dashboard">
+    <div class="card">
+      <h3>Tổng gốc đang cho vay</h3>
+      <div class="number blue" id="totalPrincipal">0 đ</div>
+    </div>
+    <div class="card">
+      <h3>Lãi dự kiến tháng này</h3>
+      <div class="number green" id="expectedInterest">0 đ</div>
+    </div>
+    <div class="card">
+      <h3>Lãi thực thu</h3>
+      <div class="number orange" id="collectedInterest">0 đ</div>
+    </div>
+    <div class="card">
+      <h3>Lãi nợ lại / Quá hạn</h3>
+      <div class="number red" id="overdueInterest">0 đ</div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <div class="filters">
+      <input type="text" class="search-box" id="searchBox" placeholder="🔍 Tìm tên người vay..." oninput="renderTable()">
+      <button class="btn btn-primary" onclick="filterBy('all')">Tất cả</button>
+      <button class="btn btn-warning" onclick="filterBy('due-today')">Thu hôm nay</button>
+      <button class="btn btn-danger" onclick="filterBy('overdue')">Quá hạn</button>
+      <button class="btn btn-success" onclick="filterBy('repaid')">Đã trả gốc</button>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" onclick="backupData()">📥 Xuất Backup</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('restoreFile').click()">📤 Nhập Backup</button>
+      <input type="file" id="restoreFile" style="display:none" accept=".json" onchange="restoreData(event)">
+      <button class="btn btn-primary" onclick="openAddModal()">+ Thêm khoản vay</button>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Tên người vay</th>
+        <th>Gốc</th>
+        <th>Lãi</th>
+        <th>Kỳ thu</th>
+        <th>Thu lãi gần nhất</th>
+        <th>Trạng thái</th>
+        <th>Thao tác</th>
+      </tr>
+    </thead>
+    <tbody id="loanTable"></tbody>
+  </table>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal" id="loanModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modalTitle">Thêm khoản vay</h2>
+      <span class="close" onclick="closeModal('loanModal')">&times;</span>
+    </div>
+    <form id="loanForm" onsubmit="saveLoan(event)">
+      <input type="hidden" id="loanId">
+      <div class="form-group">
+        <label>Tên người vay *</label>
+        <input type="text" id="customerName" required placeholder="Nhập tên hoặc SĐT">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Số tiền gốc (VNĐ) *</label>
+          <input type="number" id="principal" required min="0" step="1000">
+        </div>
+        <div class="form-group">
+          <label>Lãi suất *</label>
+          <input type="number" id="interestRate" required min="0" step="0.1">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Loại lãi *</label>
+          <select id="rateType" onchange="updateRateLabel()">
+            <option value="day">Lãi ngày (VNĐ/triệu/ngày)</option>
+            <option value="month">Lãi tháng (%)</option>
+            <option value="year">Lãi năm (%/năm)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Chu kỳ thu lãi (ngày) *</label>
+          <input type="number" id="periodDays" required min="1" value="30">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Ngày bắt đầu *</label>
+          <input type="date" id="startDate" required>
+        </div>
+        <div class="form-group">
+          <label>Ngày thu lãi gần nhất</label>
+          <input type="date" id="lastPaidDate">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Ghi chú</label>
+        <textarea id="notes" placeholder="Ghi chú thêm..."></textarea>
+      </div>
+      <div class="form-group">
+        <div class="checkbox-group">
+          <input type="checkbox" id="compoundInterest">
+          <label for="compoundInterest" style="margin:0;cursor:pointer;">Gộp lãi chậm vào gốc kỳ sau (nợ chồng nợ)</label>
+        </div>
+      </div>
+      <div style="text-align:right;margin-top:20px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('loanModal')">Hủy</button>
+        <button type="submit" class="btn btn-primary">Lưu</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Payment Modal -->
+<div class="modal" id="paymentModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Xác nhận thanh toán</h2>
+      <span class="close" onclick="closeModal('paymentModal')">&times;</span>
+    </div>
+    <div id="paymentDetails"></div>
+    <form id="paymentForm" onsubmit="confirmPayment(event)">
+      <input type="hidden" id="paymentLoanId">
+      <div class="form-group">
+        <label>Loại thanh toán</label>
+        <select id="paymentType" onchange="updatePaymentForm()">
+          <option value="interest">Trả lãi</option>
+          <option value="principal">Trả gốc một phần</option>
+          <option value="both">Trả cả lãi + gốc</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label id="paymentAmountLabel">Số tiền lãi (VNĐ)</label>
+        <input type="number" id="paymentAmount" required min="0" step="1000">
+      </div>
+      <div class="form-group">
+        <label>Ghi chú thanh toán</label>
+        <textarea id="paymentNote" placeholder="Ví dụ: Trả tiền mặt, chuyển khoản..."></textarea>
+      </div>
+      <div style="text-align:right;margin-top:20px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('paymentModal')">Hủy</button>
+        <button type="submit" class="btn btn-success">Xác nhận</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- History Modal -->
+<div class="modal" id="historyModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Lịch sử giao dịch</h2>
+      <span class="close" onclick="closeModal('historyModal')">&times;</span>
+    </div>
+    <div id="historyList"></div>
+  </div>
+</div>
+
+<!-- Reminder Modal -->
+<div class="modal" id="reminderModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Tạo tin nhắn nhắc nợ</h2>
+      <span class="close" onclick="closeModal('reminderModal')">&times;</span>
+    </div>
+    <div class="form-group">
+      <label>Nội dung tin nhắn</label>
+      <textarea id="reminderText" rows="6" readonly></textarea>
+    </div>
+    <button class="btn btn-primary" onclick="copyReminder()">📋 Sao chép tin nhắn</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let loans = JSON.parse(localStorage.getItem('loans')) || [];
+let currentFilter = 'all';
+let reminderLoanId = null;
+
+function saveToStorage() {
+  localStorage.setItem('loans', JSON.stringify(loans));
+}
+
+function formatMoney(n) {
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n);
+}
+
+function formatDate(d) {
+  if (!d) return '-';
+  const date = new Date(d);
+  return date.toLocaleDateString('vi-VN');
+}
+
+function addDays(dateStr, days) {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
+function getDaysDiff(d1, d2) {
+  const a = new Date(d1), b = new Date(d2);
+  return Math.floor((b - a) / (1000 * 60 * 60 * 24));
+}
+
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+function calculateInterest(loan, asOfDate) {
+  if (!loan.lastPaidDate) return 0;
+  const start = new Date(loan.lastPaidDate);
+  const end = new Date(asOfDate || new Date().toISOString().split('T')[0]);
+  const days = Math.max(0, getDaysDiff(start, end));
+  const principal = loan.principal;
+
+  if (loan.rateType === 'day') {
+    return (principal / 1000000) * loan.interestRate * days;
+  } else if (loan.rateType === 'month') {
+    return principal * (loan.interestRate / 100) * (days / 30);
+  } else if (loan.rateType === 'year') {
+    return principal * (loan.interestRate / 100) * (days / 365);
+  }
+  return 0;
+}
+
+function getNextDueDate(loan) {
+  if (!loan.lastPaidDate) return addDays(loan.startDate, loan.periodDays);
+  return addDays(loan.lastPaidDate, loan.periodDays);
+}
+
+function getLoanStatus(loan) {
+  const today = new Date().toISOString().split('T')[0];
+  const dueDate = getNextDueDate(loan);
+  const daysToDue = getDaysDiff(today, dueDate);
+
+  if (loan.principal <= 0) return { status: 'repaid', label: 'Đã trả hết gốc', class: 'repaid' };
+
+  if (daysToDue < 0) {
+    const overdueDays = Math.abs(daysToDue);
+    return { status: 'overdue', label: `Quá hạn ${overdueDays} ngày`, class: 'overdue', overdueDays };
+  }
+  if (daysToDue <= 3) {
+    return { status: 'due-soon', label: `Sắp đến hạn (${daysToDue} ngày)`, class: 'due-soon', daysToDue };
+  }
+  return { status: 'on-time', label: 'Đúng hạn', class: 'on-time', daysToDue };
+}
+
+function updateDashboard() {
+  let totalPrincipal = 0, expectedMonth = 0, collected = 0, overdue = 0;
+  const today = new Date().toISOString().split('T')[0];
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+
+  loans.forEach(loan => {
+    if (loan.principal > 0) totalPrincipal += loan.principal;
+
+    const dueDate = getNextDueDate(loan);
+    if (dueDate >= monthStart && dueDate <= addDays(monthStart, 31)) {
+      let monthlyInterest = 0;
+      if (loan.rateType === 'day') {
+        monthlyInterest = (loan.principal / 1000000) * loan.interestRate * 30;
+      } else if (loan.rateType === 'month') {
+        monthlyInterest = loan.principal * (loan.interestRate / 100);
+      } else if (loan.rateType === 'year') {
+        monthlyInterest = loan.principal * (loan.interestRate / 100) / 12;
+      }
+      expectedMonth += monthlyInterest;
+    }
+
+    const status = getLoanStatus(loan);
+    if (status.status === 'overdue') {
+      overdue += calculateInterest(loan, today);
+    }
+
+    loan.history.forEach(h => {
+      if (h.date >= monthStart) {
+        if (h.type === 'interest' || h.type === 'both') collected += h.interestAmount || 0;
+      }
+    });
+  });
+
+  document.getElementById('totalPrincipal').textContent = formatMoney(totalPrincipal);
+  document.getElementById('expectedInterest').textContent = formatMoney(expectedMonth);
+  document.getElementById('collectedInterest').textContent = formatMoney(collected);
+  document.getElementById('overdueInterest').textContent = formatMoney(overdue);
+}
+
+function renderTable() {
+  const tbody = document.getElementById('loanTable');
+  const search = document.getElementById('searchBox').value.toLowerCase();
+  let filtered = loans;
+
+  if (currentFilter === 'due-today') {
+    const today = new Date().toISOString().split('T')[0];
+    filtered = loans.filter(l => getNextDueDate(l) === today && l.principal > 0);
+  } else if (currentFilter === 'overdue') {
+    filtered = loans.filter(l => getLoanStatus(l).status === 'overdue');
+  } else if (currentFilter === 'repaid') {
+    filtered = loans.filter(l => l.principal <= 0);
+  }
+
+  if (search) {
+    filtered = filtered.filter(l => l.customerName.toLowerCase().includes(search));
+  }
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state">Không có dữ liệu</div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(loan => {
+    const status = getLoanStatus(loan);
+    const interest = calculateInterest(loan);
+    const nextDue = getNextDueDate(loan);
+
+    return `<tr>
+      <td><strong>${loan.customerName}</strong>${loan.notes ? `<br><small style="color:#666">${loan.notes.substring(0, 50)}</small>` : ''}</td>
+      <td>${formatMoney(loan.principal)}</td>
+      <td>${formatMoney(interest)}</td>
+      <td>${formatDate(nextDue)}</td>
+      <td>${formatDate(loan.lastPaidDate)}</td>
+      <td><span class="status ${status.class}">${status.label}</span></td>
+      <td class="actions">
+        <button class="btn btn-success btn-sm" onclick="openPaymentModal('${loan.id}')">Thu lãi</button>
+        <button class="btn btn-warning btn-sm" onclick="openReminder('${loan.id}')">Nhắn tin</button>
+        <button class="btn btn-secondary btn-sm" onclick="viewHistory('${loan.id}')">Lịch sử</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteLoan('${loan.id}')">Xóa</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  updateDashboard();
+}
+
+function filterBy(filter) {
+  currentFilter = filter;
+  renderTable();
+}
+
+function openAddModal() {
+  document.getElementById('modalTitle').textContent = 'Thêm khoản vay';
+  document.getElementById('loanForm').reset();
+  document.getElementById('loanId').value = '';
+  document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('loanModal').classList.add('active');
+}
+
+function openEditModal(id) {
+  const loan = loans.find(l => l.id === id);
+  if (!loan) return;
+  document.getElementById('modalTitle').textContent = 'Sửa khoản vay';
+  document.getElementById('loanId').value = loan.id;
+  document.getElementById('customerName').value = loan.customerName;
+  document.getElementById('principal').value = loan.principal;
+  document.getElementById('interestRate').value = loan.interestRate;
+  document.getElementById('rateType').value = loan.rateType;
+  document.getElementById('periodDays').value = loan.periodDays;
+  document.getElementById('startDate').value = loan.startDate;
+  document.getElementById('lastPaidDate').value = loan.lastPaidDate || '';
+  document.getElementById('notes').value = loan.notes || '';
+  document.getElementById('compoundInterest').checked = loan.compoundInterest || false;
+  document.getElementById('loanModal').classList.add('active');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+function saveLoan(e) {
+  e.preventDefault();
+  const id = document.getElementById('loanId').value;
+  const loan = {
+    id: id || generateId(),
+    customerName: document.getElementById('customerName').value,
+    principal: parseFloat(document.getElementById('principal').value),
+    interestRate: parseFloat(document.getElementById('interestRate').value),
+    rateType: document.getElementById('rateType').value,
+    periodDays: parseInt(document.getElementById('periodDays').value),
+    startDate: document.getElementById('startDate').value,
+    lastPaidDate: document.getElementById('lastPaidDate').value || document.getElementById('startDate').value,
+    notes: document.getElementById('notes').value,
+    compoundInterest: document.getElementById('compoundInterest').checked,
+    history: id ? (loans.find(l => l.id === id)?.history || []) : []
+  };
+
+  if (id) {
+    const idx = loans.findIndex(l => l.id === id);
+    loans[idx] = loan;
+  } else {
+    loans.push(loan);
+  }
+
+  saveToStorage();
+  closeModal('loanModal');
+  renderTable();
+  showToast(id ? 'Đã cập nhật' : 'Đã thêm khoản vay');
+}
+
+function openPaymentModal(id) {
+  const loan = loans.find(l => l.id === id);
+  if (!loan) return;
+  document.getElementById('paymentLoanId').value = id;
+  document.getElementById('paymentType').value = 'interest';
+  updatePaymentForm();
+  document.getElementById('paymentModal').classList.add('active');
+}
+
+function updatePaymentForm() {
+  const loan = loans.find(l => l.id === document.getElementById('paymentLoanId').value);
+  const type = document.getElementById('paymentType').value;
+  const label = document.getElementById('paymentAmountLabel');
+
+  if (type === 'interest') {
+    label.textContent = 'Số tiền lãi (VNĐ)';
+    document.getElementById('paymentAmount').value = Math.round(calculateInterest(loan));
+  } else if (type === 'principal') {
+    label.textContent = 'Số tiền trả gốc (VNĐ)';
+    document.getElementById('paymentAmount').value = Math.round(loan.principal);
+  } else {
+    label.textContent = 'Số tiền trả gốc (VNĐ)';
+    document.getElementById('paymentAmount').value = Math.round(loan.principal);
+  }
+}
+
+function confirmPayment(e) {
+  e.preventDefault();
+  const id = document.getElementById('paymentLoanId').value;
+  const loan = loans.find(l => l.id === id);
+  const type = document.getElementById('paymentType').value;
+  const amount = parseFloat(document.getElementById('paymentAmount').value);
+  const note = document.getElementById('paymentNote').value;
+  const today = new Date().toISOString().split('T')[0];
+
+  const interestDue = calculateInterest(loan, today);
+  let interestPaid = 0, principalPaid = 0;
+
+  if (type === 'interest') {
+    interestPaid = Math.min(amount, interestDue);
+  } else if (type === 'principal') {
+    principalPaid = Math.min(amount, loan.principal);
+    interestPaid = interestDue;
+  } else {
+    principalPaid = Math.min(amount, loan.principal);
+    interestPaid = interestDue;
+  }
+
+  if (loan.compoundInterest && interestDue > interestPaid) {
+    const unpaidInterest = interestDue - interestPaid;
+    loan.principal += unpaidInterest;
+    if (!note) note = `Lãi chậm ${formatMoney(unpaidInterest)} gộp vào gốc`;
+  }
+
+  loan.history.push({
+    date: today,
+    type: type,
+    principalPaid: principalPaid,
+    interestPaid: interestPaid,
+    note: note,
+    interestAmount: interestPaid
+  });
+
+  loan.principal -= principalPaid;
+  if (loan.principal < 0) loan.principal = 0;
+
+  if (type === 'interest' || type === 'both') {
+    loan.lastPaidDate = today;
+  }
+
+  saveToStorage();
+  closeModal('paymentModal');
+  renderTable();
+  showToast('Đã ghi nhận thanh toán');
+}
+
+function viewHistory(id) {
+  const loan = loans.find(l => l.id === id);
+  if (!loan) return;
+  const list = document.getElementById('historyList');
+  if (loan.history.length === 0) {
+    list.innerHTML = '<p style="color:#999;text-align:center;padding:20px;">Chưa có giao dịch nào</p>';
+  } else {
+    list.innerHTML = loan.history.slice().reverse().map(h => `
+      <div class="history-item">
+        <strong>${formatDate(h.date)}</strong> - ${h.type === 'interest' ? 'Trả lãi' : h.type === 'principal' ? 'Trả gốc' : 'Trả cả'}<br>
+        ${h.principalPaid > 0 ? `Gốc: ${formatMoney(h.principalPaid)}<br>` : ''}
+        ${h.interestPaid > 0 ? `Lãi: ${formatMoney(h.interestPaid)}<br>` : ''}
+        ${h.note ? `Ghi chú: ${h.note}` : ''}
+      </div>
+    `).join('');
+  }
+  document.getElementById('historyModal').classList.add('active');
+}
+
+function openReminder(id) {
+  const loan = loans.find(l => l.id === id);
+  if (!loan) return;
+  reminderLoanId = id;
+  const dueDate = getNextDueDate(loan);
+  const interest = calculateInterest(loan);
+  const text = `A/c ${loan.customerName}, kỳ lãi tháng này của a/c là ${formatMoney(interest)} đến hạn ngày ${formatDate(dueDate)}. STK nhận: [Số tài khoản]. Vui lòng thanh toán đúng hạn. Xin cảm ơn!`;
+  document.getElementById('reminderText').value = text;
+  document.getElementById('reminderModal').classList.add('active');
+}
+
+function copyReminder() {
+  const text = document.getElementById('reminderText').value;
+  navigator.clipboard.writeText(text).then(() => showToast('Đã sao chép tin nhắn'));
+}
+
+function deleteLoan(id) {
+  if (!confirm('Bạn có chắc muốn xóa khoản vay này?')) return;
+  loans = loans.filter(l => l.id !== id);
+  saveToStorage();
+  renderTable();
+  showToast('Đã xóa');
+}
+
+function backupData() {
+  const data = JSON.stringify(loans, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `backup_loans_${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Đã xuất file backup');
+}
+
+function restoreData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (Array.isArray(data)) {
+        if (!confirm(`Khôi phục ${data.length} khoản vay? Dữ liệu hiện tại sẽ bị ghi đè.`)) return;
+        loans = data;
+        saveToStorage();
+        renderTable();
+        showToast('Đã khôi phục dữ liệu');
+      }
+    } catch (err) {
+      alert('File backup không hợp lệ');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+function updateRateLabel() {
+  const type = document.getElementById('rateType').value;
+  const labels = { day: 'Lãi ngày (VNĐ/triệu/ngày)', month: 'Lãi tháng (%)', year: 'Lãi năm (%/năm)' };
+  document.querySelector('#loanForm .form-group:nth-child(3) label').textContent = 'Loại lãi *';
+}
+
+window.onclick = (e) => {
+  if (e.target.classList.contains('modal')) e.target.classList.remove('active');
+};
+
+renderTable();
+</script>
+</body>
+</html>
