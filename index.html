@@ -1061,7 +1061,7 @@ tbody tr:hover {
 <div class="toast-container" id="toastContainer"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 
 <script>
@@ -1076,7 +1076,7 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+const db = firebase.database();
 const auth = firebase.auth();
 
 let loans = [];
@@ -1102,10 +1102,10 @@ async function ensureSignedIn() {
 
 async function loadLoans() {
   const uid = await ensureSignedIn();
-  const snapshot = await db.collection('loans').where('userId', '==', uid).get();
+  const snapshot = await db.ref('loans').orderByChild('userId').equalTo(uid).once('value');
   loans = [];
-  snapshot.forEach(doc => {
-    loans.push({ id: doc.id, ...doc.data() });
+  snapshot.forEach(child => {
+    loans.push({ id: child.key, ...child.val() });
   });
 }
 
@@ -1113,11 +1113,11 @@ async function saveLoanToFirestore(loan) {
   const uid = await ensureSignedIn();
   const data = { ...loan };
   delete data.id;
-  await db.collection('loans').doc(loan.id).set({ ...data, userId: uid });
+  await db.ref('loans/' + loan.id).set({ ...data, userId: uid });
 }
 
 async function deleteLoanFromFirestore(id) {
-  await db.collection('loans').doc(id).delete();
+  await db.ref('loans/' + id).remove();
 }
 
 function formatMoney(n) {
@@ -1489,7 +1489,7 @@ function restoreData(event) {
         for (const loan of data) {
           const loanData = { ...loan };
           delete loanData.id;
-          await db.collection('loans').doc(loan.id).set({ ...loanData, userId: uid });
+          await db.ref('loans/' + loan.id).set({ ...loanData, userId: uid });
         }
         await loadLoans();
         renderTable();
