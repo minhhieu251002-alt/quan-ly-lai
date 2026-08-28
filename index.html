@@ -254,13 +254,65 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+
 <script>
-let loans = JSON.parse(localStorage.getItem('loans')) || [];
+const firebaseConfig = {
+  apiKey: "AIzaSyBu8olK3vcIiGPZ1X6aMT4jrXXgyklNPIQ",
+  authDomain: "quanlilai-bf83a.firebaseapp.com",
+  projectId: "quanlilai-bf83a",
+  storageBucket: "quanlilai-bf83a.firebasestorage.app",
+  messagingSenderId: "410145450289",
+  appId: "1:410145450289:web:04e53b8894306ccd5ce810",
+  measurementId: "G-WX3K5NCTLP"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+let loans = [];
 let currentFilter = 'all';
 let reminderLoanId = null;
+let currentUserId = null;
 
 function saveToStorage() {
   localStorage.setItem('loans', JSON.stringify(loans));
+}
+
+async function ensureSignedIn() {
+  if (currentUserId) return currentUserId;
+  const user = auth.currentUser;
+  if (user) {
+    currentUserId = user.uid;
+    return currentUserId;
+  }
+  const cred = await auth.signInAnonymously();
+  currentUserId = cred.user.uid;
+  return currentUserId;
+}
+
+async function loadLoans() {
+  const uid = await ensureSignedIn();
+  const snapshot = await db.collection('loans').where('userId', '==', uid).get();
+  loans = [];
+  snapshot.forEach(doc => {
+    loans.push({ id: doc.id, ...doc.data() });
+  });
+}
+
+async function saveLoanToFirestore(loan) {
+  const uid = await ensureSignedIn();
+  const data = { ...loan };
+  delete data.id;
+  await db.collection('loans').doc(loan.id).set({ ...data, userId: uid });
+}
+
+async function deleteLoanFromFirestore(id) {
+  await db.collection('loans').doc(id).delete();
 }
 
 function formatMoney(n) {
@@ -447,7 +499,7 @@ function closeModal(id) {
   document.getElementById(id).classList.remove('active');
 }
 
-function saveLoan(e) {
+async function saveLoan(e) {
   e.preventDefault();
   const id = document.getElementById('loanId').value;
   const loan = {
@@ -471,6 +523,7 @@ function saveLoan(e) {
     loans.push(loan);
   }
 
+  await saveLoanToFirestore(loan);
   saveToStorage();
   closeModal('loanModal');
   renderTable();
@@ -503,7 +556,7 @@ function updatePaymentForm() {
   }
 }
 
-function confirmPayment(e) {
+async function confirmPayment(e) {
   e.preventDefault();
   const id = document.getElementById('paymentLoanId').value;
   const loan = loans.find(l => l.id === id);
@@ -547,6 +600,7 @@ function confirmPayment(e) {
     loan.lastPaidDate = today;
   }
 
+  await saveLoanToFirestore(loan);
   saveToStorage();
   closeModal('paymentModal');
   renderTable();
@@ -588,9 +642,10 @@ function copyReminder() {
   navigator.clipboard.writeText(text).then(() => showToast('Đã sao chép tin nhắn'));
 }
 
-function deleteLoan(id) {
+async function deleteLoan(id) {
   if (!confirm('Bạn có chắc muốn xóa khoản vay này?')) return;
   loans = loans.filter(l => l.id !== id);
+  await deleteLoanFromFirestore(id);
   saveToStorage();
   renderTable();
   showToast('Đã xóa');
@@ -612,13 +667,18 @@ function restoreData(event) {
   const file = event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
       const data = JSON.parse(e.target.result);
       if (Array.isArray(data)) {
         if (!confirm(`Khôi phục ${data.length} khoản vay? Dữ liệu hiện tại sẽ bị ghi đè.`)) return;
-        loans = data;
-        saveToStorage();
+        const uid = await ensureSignedIn();
+        for (const loan of data) {
+          const loanData = { ...loan };
+          delete loanData.id;
+          await db.collection('loans').doc(loan.id).set({ ...loanData, userId: uid });
+        }
+        await loadLoans();
         renderTable();
         showToast('Đã khôi phục dữ liệu');
       }
@@ -641,7 +701,10 @@ window.onclick = (e) => {
   if (e.target.classList.contains('modal')) e.target.classList.remove('active');
 };
 
-renderTable();
+(async () => {
+  await loadLoans();
+  renderTable();
+})();
 </script>
 </body>
 </html>
