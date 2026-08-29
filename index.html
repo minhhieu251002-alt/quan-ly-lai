@@ -1390,7 +1390,11 @@ let viewerMode = false;
 let viewerToken = null;
 
 function saveToStorage() {
-  localStorage.setItem('loans', JSON.stringify(loans));
+  try {
+    localStorage.setItem('loans', JSON.stringify(loans));
+  } catch (e) {
+    // localStorage có thể bị chặn bởi chính sách anti-tracking của trình duyệt
+  }
 }
 
 async function ensureSignedIn() {
