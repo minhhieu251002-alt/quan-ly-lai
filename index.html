@@ -1380,9 +1380,10 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
 
-auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
 
 let loans = [];
+let memoryLoans = null;
 let currentFilter = 'all';
 let reminderLoanId = null;
 let currentUserId = null;
@@ -1390,11 +1391,31 @@ let viewerMode = false;
 let viewerToken = null;
 
 function saveToStorage() {
+  const payload = JSON.stringify(loans);
   try {
-    localStorage.setItem('loans', JSON.stringify(loans));
+    localStorage.setItem('loans', payload);
   } catch (e) {
-    // localStorage có thể bị chặn bởi chính sách anti-tracking của trình duyệt
+    try {
+      sessionStorage.setItem('loans', payload);
+    } catch (e) {
+      memoryLoans = payload;
+    }
   }
+}
+
+function loadFromStorage() {
+  try {
+    const data = localStorage.getItem('loans');
+    if (data) return JSON.parse(data);
+  } catch (e) {
+    try {
+      const data = sessionStorage.getItem('loans');
+      if (data) return JSON.parse(data);
+    } catch (e) {
+      if (memoryLoans) return JSON.parse(memoryLoans);
+    }
+  }
+  return null;
 }
 
 async function ensureSignedIn() {
@@ -1404,9 +1425,14 @@ async function ensureSignedIn() {
     currentUserId = user.uid;
     return currentUserId;
   }
-  const cred = await auth.signInAnonymously();
-  currentUserId = cred.user.uid;
-  return currentUserId;
+  try {
+    const cred = await auth.signInAnonymously();
+    currentUserId = cred.user.uid;
+    return currentUserId;
+  } catch (e) {
+    showToast('Không thể đăng nhập ẩn danh, vui lòng tắt chế độ chặn tracking', 'error');
+    throw e;
+  }
 }
 
 async function loadLoans() {
@@ -1443,6 +1469,11 @@ async function verifyViewerToken(token) {
 }
 
 async function loadLoans() {
+  const stored = loadFromStorage();
+  if (stored && Array.isArray(stored)) {
+    loans = stored;
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('viewer');
   
@@ -1461,12 +1492,18 @@ async function loadLoans() {
     }
   }
   
-  const uid = await ensureSignedIn();
-  const snapshot = await db.ref('loans').orderByChild('userId').equalTo(uid).once('value');
-  loans = [];
-  snapshot.forEach(child => {
-    loans.push({ id: child.key, ...child.val() });
-  });
+  try {
+    const uid = await ensureSignedIn();
+    const snapshot = await db.ref('loans').orderByChild('userId').equalTo(uid).once('value');
+    loans = [];
+    snapshot.forEach(child => {
+      loans.push({ id: child.key, ...child.val() });
+    });
+  } catch (e) {
+    if (!loans.length && stored && Array.isArray(stored)) {
+      loans = stored;
+    }
+  }
 }
 
 function formatMoney(n) {
