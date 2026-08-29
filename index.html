@@ -693,6 +693,22 @@ tbody tr:hover {
   gap: 10px;
 }
 
+.viewer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #FEF3C7;
+  color: #92400E;
+  border-radius: 50px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.viewer-badge::before {
+  content: '👁️';
+}
+
 .toast {
   background: var(--gray-900);
   color: white;
@@ -847,6 +863,7 @@ tbody tr:hover {
     <div class="brand-icon">💰</div>
     <h1>Hệ thống Quản lý Lãi & Cho vay</h1>
     <p class="subtitle">Theo dõi khoản vay, tính lãi và quản lý thanh toán dễ dàng</p>
+    <div id="viewerBadgeContainer"></div>
   </header>
 
   <div class="dashboard" id="dashboard">
@@ -889,10 +906,12 @@ tbody tr:hover {
       <button class="filter-chip" onclick="filterBy('repaid')" id="filter-repaid">Đã trả gốc</button>
     </div>
     <div class="toolbar-actions">
-      <button class="btn btn-secondary" onclick="backupData()">📥 Xuất</button>
+      ${!isViewer() ? `<button class="btn btn-secondary" onclick="backupData()">📥 Xuất</button>
       <button class="btn btn-secondary" onclick="document.getElementById('restoreFile').click()">📤 Nhập</button>
       <input type="file" id="restoreFile" style="display:none" accept=".json" onchange="restoreData(event)">
-      <button class="btn btn-primary" onclick="openAddModal()">+ Thêm khoản vay</button>
+      <button class="btn btn-secondary" onclick="shareViewerLink()">🔗 Chia sẻ</button>` : ''}
+      ${!isViewer() ? `<button class="btn btn-primary" onclick="openAddModal()">+ Thêm khoản vay</button>` : ''}
+      ${isViewer() ? `<span style="padding:10px 16px;background:#FEF3C7;color:#92400E;border-radius:8px;font-size:13px;font-weight:500;">👁️ Chế độ xem</span>` : ''}
     </div>
   </div>
 
@@ -1079,10 +1098,14 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
 
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
 let loans = [];
 let currentFilter = 'all';
 let reminderLoanId = null;
 let currentUserId = null;
+let viewerMode = false;
+let viewerToken = null;
 
 function saveToStorage() {
   localStorage.setItem('loans', JSON.stringify(loans));
@@ -1118,6 +1141,46 @@ async function saveLoanToFirestore(loan) {
 
 async function deleteLoanFromFirestore(id) {
   await db.ref('loans/' + id).remove();
+}
+
+async function createViewerToken() {
+  const uid = await ensureSignedIn();
+  const token = generateId();
+  await db.ref('viewerTokens/' + token).set({ ownerId: uid, createdAt: Date.now() });
+  return token;
+}
+
+async function verifyViewerToken(token) {
+  const snapshot = await db.ref('viewerTokens/' + token).once('value');
+  if (!snapshot.exists()) return null;
+  return snapshot.val();
+}
+
+async function loadLoans() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('viewer');
+  
+  if (token) {
+    const tokenData = await verifyViewerToken(token);
+    if (tokenData && tokenData.ownerId) {
+      viewerMode = true;
+      viewerToken = token;
+      currentUserId = tokenData.ownerId;
+      const snapshot = await db.ref('loans').orderByChild('userId').equalTo(tokenData.ownerId).once('value');
+      loans = [];
+      snapshot.forEach(child => {
+        loans.push({ id: child.key, ...child.val() });
+      });
+      return;
+    }
+  }
+  
+  const uid = await ensureSignedIn();
+  const snapshot = await db.ref('loans').orderByChild('userId').equalTo(uid).once('value');
+  loans = [];
+  snapshot.forEach(child => {
+    loans.push({ id: child.key, ...child.val() });
+  });
 }
 
 function formatMoney(n) {
@@ -1265,11 +1328,11 @@ function renderTable() {
       <td>${formatDate(loan.lastPaidDate)}</td>
       <td><span class="status ${status.class}"><span class="status-dot"></span>${status.label}</span></td>
       <td class="actions">
-        <button class="btn btn-success btn-sm" onclick="openPaymentModal('${loan.id}')">Thu lãi</button>
-        <button class="btn btn-info btn-sm" onclick="openEditModal('${loan.id}')">Sửa</button>
+        ${!isViewer() ? `<button class="btn btn-success btn-sm" onclick="openPaymentModal('${loan.id}')">Thu lãi</button>` : ''}
+        ${!isViewer() ? `<button class="btn btn-info btn-sm" onclick="openEditModal('${loan.id}')">Sửa</button>` : ''}
         <button class="btn btn-warning btn-sm" onclick="openReminder('${loan.id}')">Nhắn tin</button>
         <button class="btn btn-secondary btn-sm" onclick="viewHistory('${loan.id}')">Lịch sử</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteLoan('${loan.id}')">Xóa</button>
+        ${!isViewer() ? `<button class="btn btn-danger btn-sm" onclick="deleteLoan('${loan.id}')">Xóa</button>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -1284,7 +1347,33 @@ function filterBy(filter) {
   renderTable();
 }
 
+function isViewer() {
+  return viewerMode;
+}
+
+function updateViewerUI() {
+  const container = document.getElementById('viewerBadgeContainer');
+  if (!container) return;
+  if (isViewer()) {
+    container.innerHTML = '<div class="viewer-badge">Chế độ chỉ xem</div>';
+  } else {
+    container.innerHTML = '';
+  }
+}
+
+async function shareViewerLink() {
+  try {
+    const token = await createViewerToken();
+    const url = window.location.origin + window.location.pathname + '?viewer=' + token;
+    await navigator.clipboard.writeText(url);
+    showToast('Đã sao chép link chia sẻ (chỉ xem)', 'success');
+  } catch (e) {
+    showToast('Không thể tạo link chia sẻ', 'error');
+  }
+}
+
 function openAddModal() {
+  if (isViewer()) return;
   document.getElementById('modalTitle').textContent = 'Thêm khoản vay';
   document.getElementById('loanForm').reset();
   document.getElementById('loanId').value = '';
@@ -1293,6 +1382,7 @@ function openAddModal() {
 }
 
 function openEditModal(id) {
+  if (isViewer()) return;
   const loan = loans.find(l => l.id === id);
   if (!loan) return;
   document.getElementById('modalTitle').textContent = 'Sửa khoản vay';
@@ -1314,6 +1404,7 @@ function closeModal(id) {
 }
 
 async function saveLoan(e) {
+  if (isViewer()) return;
   e.preventDefault();
   const id = document.getElementById('loanId').value;
   const loan = {
@@ -1345,6 +1436,7 @@ async function saveLoan(e) {
 }
 
 function openPaymentModal(id) {
+  if (isViewer()) return;
   const loan = loans.find(l => l.id === id);
   if (!loan) return;
   document.getElementById('paymentLoanId').value = id;
@@ -1371,6 +1463,7 @@ function updatePaymentForm() {
 }
 
 async function confirmPayment(e) {
+  if (isViewer()) return;
   e.preventDefault();
   const id = document.getElementById('paymentLoanId').value;
   const loan = loans.find(l => l.id === id);
@@ -1457,6 +1550,7 @@ function copyReminder() {
 }
 
 async function deleteLoan(id) {
+  if (isViewer()) return;
   if (!confirm('Bạn có chắc muốn xóa khoản vay này?')) return;
   loans = loans.filter(l => l.id !== id);
   await deleteLoanFromFirestore(id);
@@ -1525,6 +1619,7 @@ window.onclick = (e) => {
   try {
     await loadLoans();
     renderTable();
+    updateViewerUI();
   } catch (e) {
     showToast('Không tải được dữ liệu', 'error');
   } finally {
