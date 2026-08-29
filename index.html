@@ -971,13 +971,12 @@ tbody tr:hover {
       <button class="filter-chip" onclick="filterBy('overdue')" id="filter-overdue">Quá hạn</button>
       <button class="filter-chip" onclick="filterBy('repaid')" id="filter-repaid">Đã trả gốc</button>
     </div>
-    <div class="toolbar-actions">
-      ${!isViewer() ? `<button class="btn btn-secondary" onclick="backupData()">📥 Xuất</button>
+    <div class="toolbar-actions" id="toolbarActions">
+      <button class="btn btn-secondary" onclick="backupData()">📥 Xuất</button>
       <button class="btn btn-secondary" onclick="document.getElementById('restoreFile').click()">📤 Nhập</button>
       <input type="file" id="restoreFile" style="display:none" accept=".json" onchange="restoreData(event)">
-      <button class="btn btn-secondary" onclick="shareViewerLink()">🔗 Chia sẻ</button>` : ''}
-      ${!isViewer() ? `<button class="btn btn-primary" onclick="openAddModal()">+ Thêm khoản vay</button>` : ''}
-      ${isViewer() ? `<span style="padding:10px 16px;background:#FEF3C7;color:#92400E;border-radius:8px;font-size:13px;font-weight:500;">👁️ Chế độ xem</span>` : ''}
+      <button class="btn btn-secondary" onclick="shareViewerLink()">🔗 Chia sẻ</button>
+      <button class="btn btn-primary" onclick="openAddModal()">+ Thêm khoản vay</button>
     </div>
   </div>
 
@@ -1424,6 +1423,20 @@ function updateViewerUI() {
     container.innerHTML = '<div class="viewer-badge">Chế độ chỉ xem</div>';
   } else {
     container.innerHTML = '';
+  }
+
+  const toolbar = document.getElementById('toolbarActions');
+  if (!toolbar) return;
+  if (isViewer()) {
+    toolbar.innerHTML = '<span style="padding:10px 16px;background:#FEF3C7;color:#92400E;border-radius:8px;font-size:13px;font-weight:500;">👁️ Chế độ xem</span>';
+  } else {
+    toolbar.innerHTML = `
+      <button class="btn btn-secondary" onclick="backupData()">📥 Xuất</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('restoreFile').click()">📤 Nhập</button>
+      <input type="file" id="restoreFile" style="display:none" accept=".json" onchange="restoreData(event)">
+      <button class="btn btn-secondary" onclick="shareViewerLink()">🔗 Chia sẻ</button>
+      <button class="btn btn-primary" onclick="openAddModal()">+ Thêm khoản vay</button>
+    `;
   }
 }
 
