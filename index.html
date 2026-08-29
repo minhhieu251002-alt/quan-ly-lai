@@ -1121,7 +1121,8 @@ async function deleteLoanFromFirestore(id) {
 }
 
 function formatMoney(n) {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n);
+  if (n === null || n === undefined || isNaN(n)) return '0đ';
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(n);
 }
 
 function formatDate(d) {
@@ -1242,7 +1243,7 @@ function renderTable() {
   }
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📭</div><h3>Không có dữ liệu</h3<p>Thêm khoản vay đầu tiên để bắt đầu</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📭</div><h3>Không có dữ liệu</h3><p>Thêm khoản vay đầu tiên để bắt đầu</p></div></td></tr>`;
     return;
   }
 
@@ -1279,7 +1280,7 @@ function renderTable() {
 function filterBy(filter) {
   currentFilter = filter;
   document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
-  document.getElementById('filter-' + filter.replace('due-today', 'due-today')).classList.add('active');
+  document.getElementById('filter-' + filter).classList.add('active');
   renderTable();
 }
 
@@ -1496,7 +1497,7 @@ function restoreData(event) {
         showToast('Đã khôi phục dữ liệu', 'success');
       }
     } catch (err) {
-      alert('File backup không hợp lệ');
+      showToast('File backup không hợp lệ', 'error');
     }
   };
   reader.readAsText(file);
@@ -1521,9 +1522,14 @@ window.onclick = (e) => {
 };
 
 (async () => {
-  await loadLoans();
-  renderTable();
-  document.getElementById('loadingOverlay').classList.add('hidden');
+  try {
+    await loadLoans();
+    renderTable();
+  } catch (e) {
+    showToast('Không tải được dữ liệu', 'error');
+  } finally {
+    document.getElementById('loadingOverlay').classList.add('hidden');
+  }
 })();
 </script>
 </body>
