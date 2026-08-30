@@ -3,6 +3,11 @@
     "public": ".",
     "ignore": [
       "firebase.json",
+      ".firebaserc",
+      ".git/**",
+      ".github/**",
+      ".firebase/**",
+      ".kilo/**",
       "**/.*",
       "**/node_modules/**"
     ]
