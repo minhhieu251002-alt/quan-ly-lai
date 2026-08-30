@@ -1952,20 +1952,6 @@ window.onclick = (e) => {
   if (e.target.classList.contains('modal')) e.target.classList.remove('active');
 };
 
-(async () => {
-  try {
-    await loadLoans();
-    renderTable();
-    updateViewerUI();
-  } catch (e) {
-    showToast('Không tải được dữ liệu', 'error');
-  } finally {
-    document.getElementById('loadingOverlay').classList.add('hidden');
-  }
-})();
-
-})();
-
 (function initCinematicBackground() {
   const canvas = document.getElementById('three-canvas');
   if (!canvas) return;
@@ -2175,5 +2161,6 @@ window.onclick = (e) => {
     });
   }
 })();
+</script>
 </body>
 </html>
