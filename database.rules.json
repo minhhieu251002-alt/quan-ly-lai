@@ -1,0 +1,13 @@
+{
+  "rules": {
+    "loans": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["userId"]
+    },
+    "viewerTokens": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}
